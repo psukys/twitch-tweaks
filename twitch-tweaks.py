@@ -24,20 +24,16 @@ import urllib.request
 import json
 from typing import Dict, Any
 import sys
-import threading
 import hexchat
 
 __module_name__ = "Twitch Tweaks"
 __module_author__ = "oxguy3"
 __module_version__ = "0.1"
 __module_description__ = "Do Twitch better. Forked from PDog's twitch-title.py"
-# TODO: Clean up thread handling <PDog>
 # TODO: Figure out why get_current_status() sometimes doesn't print updated status <PDog>
 
-t = None
 pluginprefix = "twtw_"
 
-# to get token: https://twitchapps.com/tmi/
 
 class StreamParser:
 
@@ -128,20 +124,11 @@ def is_twitch():
     return server and get_pref("twitch_base_domain") in server
 
 
-def get_current_status():
+def get_current_status(_=None):
     """Update the stream status."""
     parser = StreamParser(channel=None)
     parser.get_twitch_channels()
     parser.update_status()
-
-
-def run_update_loop():
-    """Update the stream status every 10 minutes."""
-    global t
-    get_current_status()
-    t = threading.Timer(get_pref("refresh_rate"), run_update_loop)  # TODO: use hexchat's timer instead
-    t.daemon = True
-    t.start()
 
 
 def join_cb(word, word_eol, userdata):
@@ -155,20 +142,6 @@ def join_cb(word, word_eol, userdata):
 
     return hexchat.EAT_NONE
 
-
-def unload_cb(userdata):
-    """
-    These appear to be necessary to prevent HexChat from crashing
-    on quit while a thread is active in Python
-    """
-    global t
-    t.cancel()
-    t.join()
-
-
-"""
-Methods for handling plugin preferences
-"""
 
 PREFERENCE_DEFAULTS = {
     "twitch_api_root": "https://api.twitch.tv/helix",
@@ -237,11 +210,11 @@ def twtwlist_cb(word, word_eol, userdata):
 
 
 init_pref()
-run_update_loop()
+
 hexchat.hook_print("You Join", join_cb, hexchat.PRI_LOWEST)
 hexchat.hook_command("TWTWSET", twtwset_cb, help=twtwset_help_text)
 hexchat.hook_command("TWTWREFRESH", twtwrefresh_cb, help=twtwrefresh_help_text)
 hexchat.hook_command("TWTWLIST", twtwlist_cb, help=twtwlist_help_text)
-hexchat.hook_unload(unload_cb)
-
+hexchat.hook_timer(get_pref("refresh_rate"), get_current_status)
+get_current_status()
 hexchat.prnt(__module_name__ + " version " + __module_version__ + " loaded")
