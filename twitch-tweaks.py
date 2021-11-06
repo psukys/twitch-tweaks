@@ -44,7 +44,7 @@ class StreamParser:
     def __init__(self, channel):
         self.channel = channel
         self.twitch_chans = []
-        self.status = 0
+        self.is_online = False
         self.display_name = channel  # fallback if Twitch API is down
         self.game = ""
         self.title = ""
@@ -53,15 +53,10 @@ class StreamParser:
     def set_topic(self):
         """Set the channel topic (no formatting) and print the topic locally with formatting."""
 
-        # statusLong = "\00320\002OFF\002\00399"
-        statusShort = get_pref("bullet_offline")
-        if self.status == 1:
-            # statusLong = "\00319\002ON\002\00399"
-            statusShort = get_pref("bullet_online")
+        status_short = get_pref("bullet_online") if self.is_online else get_pref("bullet_offline")
 
-        if get_pref("modify_topic") == 1:
-            msg = "{1}\00318{0}\00399 | {3} | \00318{2}\00399"\
-                .format(self.display_name, statusShort, self.game, self.title)
+        if get_pref("modify_topic"):
+            msg = f"{status_short}\00318{self.display_name}\00399 | {self.title} | \00318{self.game}\00399"
 
             # HexChat doesn't support hiding characters in the topic bar (Windows), so strip the formatting until it's fixed
             if sys.platform == "win32":
@@ -70,10 +65,10 @@ class StreamParser:
             if hexchat.get_info("topic") != msg:
                 hexchat.command("RECV :Topic!Topic@twitch.tv TOPIC #{0} :{1}".format(self.channel, msg))
 
-        if get_pref("modify_tab") == 1:
+        if get_pref("modify_tab"):
             # Set the tab title to the properly capitalized form of the name
             settabCommand = "SETTAB {0}{1}"\
-                .format(statusShort, self.display_name)
+                .format(status_short, self.display_name)
             hashChannel = "#{0}".format(self.channel)
 
             cxt = hexchat.find_context(hexchat.get_info("server"), hashChannel)
@@ -89,13 +84,10 @@ class StreamParser:
 
     def update_status(self):
         """Check the status of open channels."""
-        if self.twitch_chans:
-            for chan in self.twitch_chans:
-                self.channel = chan[1:]
-                self.get_stream_info()
-                self.set_topic()
-        else:
-            pass
+        for chan in self.twitch_chans:
+            self.channel = chan[1:]
+            self.get_stream_info()
+            self.set_topic()
 
     def get_stream_info(self):
         """Get the stream information."""
@@ -103,15 +95,14 @@ class StreamParser:
         params = {"user_login": self.channel}
         stream_data = get_json(url=stream_url, params=params)
 
-        self.status = 0
+        self.is_online = False
         self.display_name = self.channel
         self.game = ""
         self.title = "\035Stream is offline\017"
 
-        # use the channel object we got if we got one, else query for a channel object
         if len(stream_data["data"]) == 1:
             data = stream_data["data"][0]
-            self.status = 1
+            self.is_online = True
             self.display_name = data["user_name"]
             self.game = data["game_name"]
             self.title = data["title"]
@@ -134,10 +125,7 @@ def get_json(url: str, params: dict[str, str] = None) -> Dict[str, Any]:
 
 def is_twitch():
     server = hexchat.get_info("host")
-    if server and get_pref("twitch_base_domain") in server:
-        return True
-    else:
-        return False
+    return server and get_pref("twitch_base_domain") in server
 
 
 def get_current_status():
@@ -151,7 +139,7 @@ def run_update_loop():
     """Update the stream status every 10 minutes."""
     global t
     get_current_status()
-    t = threading.Timer(get_pref("refresh_rate"), run_update_loop)  # TODO: user hexchat's timer instead
+    t = threading.Timer(get_pref("refresh_rate"), run_update_loop)  # TODO: use hexchat's timer instead
     t.daemon = True
     t.start()
 
@@ -189,9 +177,8 @@ PREFERENCE_DEFAULTS = {
     "twitch_base_domain": "twitch.tv",
     "bullet_offline": "\u25A1 ",
     "bullet_online": "\u25A0 ",
-    "modify_topic": 1,
-    "modify_tab": 1,
-    "lookup_offline_names": 1,
+    "modify_topic": True,
+    "modify_tab": True,
     "refresh_rate": 600
 }
 
@@ -203,12 +190,10 @@ def init_pref():
 
 
 def get_pref(key):
-    global pluginprefix
     return hexchat.get_pluginpref(pluginprefix + key)
 
 
 def set_pref(key, value):
-    global pluginprefix
     return hexchat.set_pluginpref(pluginprefix + key, value)
 
 
@@ -222,7 +207,6 @@ twtwlist_help_text = "Usage: TWTWLIST - Lists all preferences set for twitch-twe
 
 
 def twtwset_cb(word, word_eol, userdata):
-    global twtwset_help_text, pluginprefix
     if len(word) < 2:
         print("Incorrect syntax. " + twtwset_help_text)
     else:
@@ -238,14 +222,12 @@ def twtwset_cb(word, word_eol, userdata):
 
 
 def twtwrefresh_cb(word, word_eol, userdata):
-    global twtwset_help_text
     get_current_status()
     print("Refreshed all Twitch channels!")
     return hexchat.EAT_ALL
 
 
 def twtwlist_cb(word, word_eol, userdata):
-    global twtwset_help_text, pluginprefix
     for key in hexchat.list_pluginpref():
         if key.startswith(pluginprefix):
             cleanKey = key[len(pluginprefix):]
