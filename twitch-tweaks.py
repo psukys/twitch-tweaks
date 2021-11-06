@@ -20,7 +20,9 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
-import requests
+import urllib.request
+import json
+from typing import Dict, Any
 import sys
 import threading
 import hexchat
@@ -35,6 +37,7 @@ __module_description__ = "Do Twitch better. Forked from PDog's twitch-title.py"
 t = None
 pluginprefix = "twtw_"
 
+# to get token: https://twitchapps.com/tmi/
 
 class StreamParser:
 
@@ -96,30 +99,37 @@ class StreamParser:
 
     def get_stream_info(self):
         """Get the stream information."""
-        streamUrl = get_pref("twitch_api_root") + "/streams?"
-        params = {"channel": self.channel}
-        streamReq = requests.get(streamUrl, params=params)
-        streamData = streamReq.json()
+        stream_url = get_pref("twitch_api_root") + "/streams"
+        params = {"user_login": self.channel}
+        stream_data = get_json(url=stream_url, params=params)
 
+        self.status = 0
         self.display_name = self.channel
         self.game = ""
         self.title = "\035Stream is offline\017"
 
         # use the channel object we got if we got one, else query for a channel object
-        channelData = None
-        if not streamData["streams"]:
-            self.status = 0
-            if get_pref("lookup_offline_names") == 1:
-                chanUrl = get_pref("twitch_api_root") + "/channels/" + self.channel
-                chanReq = requests.get(chanUrl)
-                channelData = chanReq.json()
-        else:
+        if len(stream_data["data"]) == 1:
+            data = stream_data["data"][0]
             self.status = 1
-            channelData = streamData["streams"][0]["channel"]
+            self.display_name = data["user_name"]
+            self.game = data["game_name"]
+            self.title = data["title"]
 
-        self.display_name = channelData["display_name"]
-        self.game = channelData["game"]
-        self.title = channelData["status"]
+
+def get_json(url: str, params: dict[str, str] = None) -> Dict[str, Any]:
+    request_url = url
+    if params is not None:
+        request_url += f"?{urllib.parse.urlencode(params)}"
+    request_headers = {
+        "Authorization": f"Bearer {get_pref('api_token')}",
+        "Client-Id": get_pref('api_client_id')
+    }
+    request = urllib.request.Request(url=request_url, headers=request_headers)
+    print(request_url)
+    with urllib.request.urlopen(request) as response:
+        data = json.loads(response.read().decode())
+    return data
 
 
 def is_twitch():
@@ -173,7 +183,9 @@ Methods for handling plugin preferences
 """
 
 PREFERENCE_DEFAULTS = {
-    "twitch_api_root": "https://api.twitch.tv/kraken",
+    "twitch_api_root": "https://api.twitch.tv/helix",
+    "api_token": hexchat.get_info('password').split(":")[1],
+    "api_client_id": "q6batx0epp608isickayubi39itsckt",
     "twitch_base_domain": "twitch.tv",
     "bullet_offline": "\u25A1 ",
     "bullet_online": "\u25A0 ",
@@ -185,9 +197,9 @@ PREFERENCE_DEFAULTS = {
 
 
 def init_pref():
-    for pref, pref_default in PREFERENCE_DEFAULTS:
-        if get_pref(pref) is None:
-            set_pref(pref, pref_default)
+    for pref, pref_default in PREFERENCE_DEFAULTS.items():
+        # if get_pref(pref) is None:
+        set_pref(pref, pref_default)
 
 
 def get_pref(key):
