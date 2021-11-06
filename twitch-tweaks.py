@@ -172,31 +172,22 @@ def unload_cb(userdata):
 Methods for handling plugin preferences
 """
 
+PREFERENCE_DEFAULTS = {
+    "twitch_api_root": "https://api.twitch.tv/kraken",
+    "twitch_base_domain": "twitch.tv",
+    "bullet_offline": "\u25A1 ",
+    "bullet_online": "\u25A0 ",
+    "modify_topic": 1,
+    "modify_tab": 1,
+    "lookup_offline_names": 1,
+    "refresh_rate": 600
+}
+
 
 def init_pref():
-    if get_pref("twitch_api_root") is None:
-        set_pref("twitch_api_root", "https://api.twitch.tv/kraken")
-
-    if get_pref("twitch_base_domain") is None:
-        set_pref("twitch_base_domain", "twitch.tv")
-
-    if get_pref("bullet_offline") is None:
-        set_pref("bullet_offline", "\u25A1 ")
-
-    if get_pref("bullet_online") is None:
-        set_pref("bullet_online", "\u25A0 ")
-
-    if get_pref("modify_topic") is None:
-        set_pref("modify_topic", 1)
-
-    if get_pref("modify_tab") is None:
-        set_pref("modify_tab", 1)
-
-    if get_pref("lookup_offline_names") is None:
-        set_pref("lookup_offline_names", 1)
-
-    if get_pref("refresh_rate") is None:
-        set_pref("refresh_rate", 600)
+    for pref, pref_default in PREFERENCE_DEFAULTS:
+        if get_pref(pref) is None:
+            set_pref(pref, pref_default)
 
 
 def get_pref(key):
