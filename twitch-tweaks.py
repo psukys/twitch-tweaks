@@ -138,14 +138,14 @@ PREFERENCE_DEFAULTS = {
     "bullet_online": "\u25A0 ",
     "modify_topic": True,
     "modify_tab": True,
-    "refresh_rate": 5
+    "refresh_rate": 600
 }
 
 
 def init_pref():
     for pref, pref_default in PREFERENCE_DEFAULTS.items():
-        # if get_pref(pref) is None:
-        set_pref(pref, pref_default)
+        if get_pref(pref) is None:
+            set_pref(pref, pref_default)
 
 
 def get_pref(key):
@@ -202,6 +202,5 @@ hexchat.hook_command("TWTWSET", twtw_set_cb, help=TWTWSET_HELP_TEXT)
 hexchat.hook_command("TWTWREFRESH", twtw_refresh_cb, help=TWTWREFRESH_HELP_TEXT)
 hexchat.hook_command("TWTWLIST", twtw_list_cb, help=TWTWLIST_HELP_TEXT)
 hexchat.hook_timer(get_pref("refresh_rate"), update_all)
-update_all()
 
 hexchat.prnt(__module_name__ + " version " + __module_version__ + " loaded")
